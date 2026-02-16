@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>
+        {% if title %}
+        Fastapi-Blog - {{title}}
+        {% else %}
+        Fastapi-Blog
+        {% endif %}
+    </title>
+</head>
+<body>
+    <h1>Welcome to Fastapi-Blog!</h1>
+    <p>This is the home page of the Fastapi-Blog application.</p>
+    {%for post in posts %}
+        <h3>{{ post.title }}</h3>
+        <p>{{ post.content }}</p>
+    {% endfor %}
+</body>
+</html>
