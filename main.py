@@ -29,13 +29,34 @@ def home(request: Request):
     return templates.TemplateResponse("home.html", {"request": request, "posts": posts,"title":"Vortex"})
    
 
-@app.get("/posts")
+
+
+## HTML Endpoints
+
+@app.get("/posts/{post_id}",include_in_schema=False)
+def post_page(request: Request,post_id: int):
+    post = next((post for post in posts if post["id"] == post_id),None)
+    if post:
+        title: str = post['title'][:30]
+        return templates.TemplateResponse("post.html",{
+                                              "request": request,
+                                              "post": post,
+                                              "title":title,
+                                              })
+    return templates.TemplateResponse('error.html',{ "request": request,
+                                              "status": status.HTTP_404_NOT_FOUND,
+                                              "message":"Page Not Found",})
+
+
+## API Endpoints
+
+@app.get("/api/posts")
 def get_posts():
     return posts
 
-@app.get("/posts/{post_id}")
+@app.get("/api/posts/{post_id}")
 def get_post(post_id: int):
     post = next((post for post in posts if post["id"] == post_id),None)
     if post:
         return post
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=f"post with id:{post_id} not found")
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
