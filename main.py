@@ -1,82 +1,131 @@
 from datetime import datetime
-from fastapi import FastAPI, Request,HTTPException,status
+from typing import Annotated
+from fastapi import Depends, FastAPI, Request, HTTPException, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import select
 
-from schemas import PostCreate, PostResponse
+from database import Base, engine, get_db
+from schemas import PostCreate, PostResponse, UserCreate, UserResponse
+from models import User, Post
+
+Base.metadata.create_all(bind=engine)
+SessionDep = Annotated[Session, Depends(get_db)]
 
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/media", StaticFiles(directory="media"), name="media")
 
 templates = Jinja2Templates(directory="templates")
-posts: list[dict] = [
-    {
-        "id": 1,
-        "author": "Corey Schafer",
-        "title": "FastAPI is Awesome",
-        "content": "This framework is really easy to use and super fast.",
-        "date_posted": "April 20, 2025",
-    },
-    {
-        "id": 2,
-        "author": "Jane Doe",
-        "title": "Python is Great for Web Development",
-        "content": "Python is a great language for web development, and FastAPI makes it even better.",
-        "date_posted": "April 21, 2025",
-    },
-]
+
 
 ## HTML Endpoints
-@app.get("/",include_in_schema=False)
-def home(request: Request):
-    return templates.TemplateResponse("home.html", {"request": request, "posts": posts,"title":"Vortex"})
-   
+@app.get("/", include_in_schema=False)
+def home(request: Request, db: SessionDep):
+    posts = db.query(Post).all()
+    return templates.TemplateResponse(
+        "home.html", {"request": request, "posts": posts, "title": "Vortex"}
+    )
 
-@app.get("/posts/{post_id}",include_in_schema=False)
-def post_page(request: Request,post_id: int):
-    post = next((post for post in posts if post["id"] == post_id),None)
-    if post:
-        title: str = post['title'][:30]
-        return templates.TemplateResponse("post.html",{
-                                              "request": request,
-                                              "post": post,
-                                              "title":title,
-                                              })
-    return templates.TemplateResponse('error.html',{ "request": request,
-                                              "status": status.HTTP_404_NOT_FOUND,
-                                              "message":"Page Not Found",})
+
+@app.get("/posts/{post_id}", include_in_schema=False)
+def post_page(request: Request, post_id: int, db: SessionDep):
+    post = db.get(Post, post_id)
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Post not found"
+        )
+    title: str = post.title[:30]
+    return templates.TemplateResponse(
+        "post.html",
+        {
+            "request": request,
+            "post": post,
+            "title": title,
+        },
+    )
 
 
 ## API Endpoints
 
-@app.get("/api/posts",response_model=list[PostResponse])
-def get_posts():
-    return posts
 
-@app.post("/api/posts",status_code=status.HTTP_201_CREATED,response_model=PostResponse)
-def create_post(post: PostCreate):
-    id: int = posts[-1]["id"] + 1 if posts else 1
-    new_post = {
-        "id":id,
-        "date_posted":str(datetime.now()), 
-        "author":post.author,
-        "title":post.title,
-        "content":post.content
-    }
-    posts.append(new_post)
+# User Endpoints
+@app.post(
+    "/api/users", status_code=status.HTTP_201_CREATED, response_model=UserResponse
+)
+def create_user(user: UserCreate, db: SessionDep):
+    result = db.execute(select(User).where(User.username == user.username)).first()
+
+    if result:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Username already exists"
+        )
+    result = db.execute(select(User).where(User.email == user.email)).first()
+    if result:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already exists"
+        )
+    new_user = User(**user.model_dump())
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+
+@app.get("/api/users/{user_id}", response_model=UserResponse)
+def get_user(user_id: int, db: SessionDep):
+    user: User | None = db.get(User, user_id)
+    if user:
+        return user
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+
+@app.get("/api/users/{user_id}/posts", response_model=list[PostResponse])
+def get_user_posts(user_id: int, db: SessionDep):
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+    return user.posts
+
+
+# Post Endpoints
+
+
+@app.get("/api/posts", response_model=list[PostResponse])
+def get_posts(db: SessionDep):
+    return db.query(Post).all()
+
+
+@app.post(
+    "/api/posts", status_code=status.HTTP_201_CREATED, response_model=PostResponse
+)
+def create_post(post: PostCreate, db: SessionDep):
+    user = db.get(User, post.user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+    new_post = Post(**post.model_dump())
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
     return new_post
-    
 
-@app.get("/api/posts/{post_id}",response_model=PostResponse)
-def get_post(post_id: int):
-    post = next((post for post in posts if post["id"] == post_id),None)
+
+@app.get("/api/posts/{post_id}", response_model=PostResponse)
+def get_post(post_id: int, db: SessionDep):
+    post = db.get(Post, post_id)
     if post:
         return post
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Post not found")
+
 
 @app.exception_handler(StarletteHTTPException)
 def general_http_exception_handler(request: Request, exception: StarletteHTTPException):
@@ -102,6 +151,8 @@ def general_http_exception_handler(request: Request, exception: StarletteHTTPExc
         },
         status_code=exception.status_code,
     )
+
+
 # request validation errors always 422 status code
 @app.exception_handler(RequestValidationError)
 def validation_exception_handler(request: Request, exception: RequestValidationError):
