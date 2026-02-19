@@ -13,6 +13,8 @@ from database import Base, engine, get_db
 from schemas import PostCreate, PostResponse, UserCreate, UserResponse
 from models import User, Post
 
+from routes.user import router as user_router
+
 Base.metadata.create_all(bind=engine)
 SessionDep = Annotated[Session, Depends(get_db)]
 
@@ -22,6 +24,8 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/media", StaticFiles(directory="media"), name="media")
 
 templates = Jinja2Templates(directory="templates")
+
+app.include_router(user_router)
 
 
 ## HTML Endpoints
@@ -54,77 +58,8 @@ def post_page(request: Request, post_id: int, db: SessionDep):
 ## API Endpoints
 
 
-# User Endpoints
-@app.post(
-    "/api/users", status_code=status.HTTP_201_CREATED, response_model=UserResponse
-)
-def create_user(user: UserCreate, db: SessionDep):
-    result = db.execute(select(User).where(User.username == user.username)).first()
-
-    if result:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Username already exists"
-        )
-    result = db.execute(select(User).where(User.email == user.email)).first()
-    if result:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already exists"
-        )
-    new_user = User(**user.model_dump())
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    return new_user
 
 
-@app.get("/api/users/{user_id}", response_model=UserResponse)
-def get_user(user_id: int, db: SessionDep):
-    user: User | None = db.get(User, user_id)
-    if user:
-        return user
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-
-@app.get("/api/users/{user_id}/posts", response_model=list[PostResponse])
-def get_user_posts(user_id: int, db: SessionDep):
-    user = db.get(User, user_id)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-    return user.posts
-
-
-# Post Endpoints
-
-
-@app.get("/api/posts", response_model=list[PostResponse])
-def get_posts(db: SessionDep):
-    return db.query(Post).all()
-
-
-@app.post(
-    "/api/posts", status_code=status.HTTP_201_CREATED, response_model=PostResponse
-)
-def create_post(post: PostCreate, db: SessionDep):
-    user = db.get(User, post.user_id)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-    new_post = Post(**post.model_dump())
-    db.add(new_post)
-    db.commit()
-    db.refresh(new_post)
-    return new_post
-
-
-@app.get("/api/posts/{post_id}", response_model=PostResponse)
-def get_post(post_id: int, db: SessionDep):
-    post = db.get(Post, post_id)
-    if post:
-        return post
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Post not found")
 
 
 @app.exception_handler(StarletteHTTPException)
