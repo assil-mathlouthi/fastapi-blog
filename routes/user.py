@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from fastapi import HTTPException, status
-from main import SessionDep
+from database import SessionDep
 from models import User
 from schemas import PostResponse, UserResponse, UserCreate
 from sqlalchemy import select

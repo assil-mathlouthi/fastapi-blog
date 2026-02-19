@@ -1,22 +1,18 @@
-from datetime import datetime
-from typing import Annotated
-from fastapi import Depends, FastAPI, Request, HTTPException, status
+from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from sqlalchemy.orm import Session
-from sqlalchemy import select
 
-from database import Base, engine, get_db
-from schemas import PostCreate, PostResponse, UserCreate, UserResponse
-from models import User, Post
+from database import Base, SessionDep, engine
+from models import Post
 
 from routes.user import router as user_router
+from routes.post import router as post_router
 
 Base.metadata.create_all(bind=engine)
-SessionDep = Annotated[Session, Depends(get_db)]
+
 
 
 app = FastAPI()
@@ -26,6 +22,7 @@ app.mount("/media", StaticFiles(directory="media"), name="media")
 templates = Jinja2Templates(directory="templates")
 
 app.include_router(user_router)
+app.include_router(post_router)
 
 
 ## HTML Endpoints
@@ -53,13 +50,6 @@ def post_page(request: Request, post_id: int, db: SessionDep):
             "title": title,
         },
     )
-
-
-## API Endpoints
-
-
-
-
 
 
 @app.exception_handler(StarletteHTTPException)
