@@ -1,17 +1,15 @@
-from fastapi import FastAPI, Request, HTTPException, status
+from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from database import Base, SessionDep, engine
-from models import Post
+from database import Base, engine
 
-from routes import user_router, post_router
+from routes import user_router, post_router, pages_router
 
 Base.metadata.create_all(bind=engine)
-
 
 
 app = FastAPI()
@@ -22,33 +20,7 @@ templates = Jinja2Templates(directory="templates")
 
 app.include_router(user_router)
 app.include_router(post_router)
-
-
-## HTML Endpoints
-@app.get("/", include_in_schema=False)
-def home(request: Request, db: SessionDep):
-    posts = db.query(Post).all()
-    return templates.TemplateResponse(
-        "home.html", {"request": request, "posts": posts, "title": "Vortex"}
-    )
-
-
-@app.get("/posts/{post_id}", include_in_schema=False)
-def post_page(request: Request, post_id: int, db: SessionDep):
-    post = db.get(Post, post_id)
-    if not post:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Post not found"
-        )
-    title: str = post.title[:30]
-    return templates.TemplateResponse(
-        "post.html",
-        {
-            "request": request,
-            "post": post,
-            "title": title,
-        },
-    )
+app.include_router(pages_router)
 
 
 @app.exception_handler(StarletteHTTPException)
