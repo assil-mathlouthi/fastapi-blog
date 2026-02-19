@@ -36,7 +36,7 @@ def post_page(request: Request, post_id: int, db: SessionDep):
     )
 
 
-@router.get("/users/{user_id}/posts", name="user_posts")
+@router.get("/users/{user_id}/posts")
 def user_posts_page(
     request: Request,
     user_id: int,
