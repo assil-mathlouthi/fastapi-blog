@@ -7,13 +7,13 @@ from schemas import PostCreate, PostResponse
 router = APIRouter(prefix="/api/posts", tags=["posts"])
 
 
-@router.get("/api/posts", response_model=list[PostResponse])
+@router.get("", response_model=list[PostResponse])
 def get_posts(db: SessionDep):
     return db.query(Post).all()
 
 
 @router.post(
-    "/api/posts", status_code=status.HTTP_201_CREATED, response_model=PostResponse
+    "", status_code=status.HTTP_201_CREATED, response_model=PostResponse
 )
 def create_post(post: PostCreate, db: SessionDep):
     user = db.get(User, post.user_id)
@@ -28,7 +28,7 @@ def create_post(post: PostCreate, db: SessionDep):
     return new_post
 
 
-@router.get("/api/posts/{post_id}", response_model=PostResponse)
+@router.get("/{post_id}", response_model=PostResponse)
 def get_post(post_id: int, db: SessionDep):
     post = db.get(Post, post_id)
     if post:

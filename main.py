@@ -8,8 +8,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from database import Base, SessionDep, engine
 from models import Post
 
-from routes.user import router as user_router
-from routes.post import router as post_router
+from routes import user_router, post_router
 
 Base.metadata.create_all(bind=engine)
 
