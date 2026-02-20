@@ -21,6 +21,12 @@ class PostBase(BaseModel):
     title: str = Field(min_length=1,max_length=100)
     content: str = Field(min_length=1)
     
+class PostUpdate(BaseModel):
+    # prevent the caller of adding extra attributes
+    # model_config = ConfigDict(extra='forbid')
+    title: str | None = Field(min_length=1,max_length=100,default=None)
+    content: str | None = Field(min_length=1,default=None)
+    
 class PostCreate(PostBase):
     user_id: int
     
