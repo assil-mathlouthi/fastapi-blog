@@ -66,3 +66,10 @@ def update_post_partial(post_id: int,post_data : PostUpdate, db: SessionDep):
     db.refresh(post)
     return post
 
+@router.delete("/{post_id}",status_code=status.HTTP_204_NO_CONTENT)
+def delete_post(post_id:int, db: SessionDep):
+    post = db.get(Post, post_id)
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Post not found")
+    db.delete(post)
+    db.commit()
