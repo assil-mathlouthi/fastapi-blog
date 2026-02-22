@@ -1,7 +1,8 @@
 from fastapi import APIRouter
 from fastapi import HTTPException, status
+from sqlalchemy.orm import selectinload
 from database import SessionDep
-from models import User
+from models import User, Post
 from schemas import PostResponse, UserResponse, UserCreate, UserUpdate
 from sqlalchemy import select
 
@@ -10,8 +11,8 @@ router = APIRouter(prefix="/api/users", tags=["users"])
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
-def create_user(user: UserCreate, db: SessionDep):
-    result = db.scalar(
+async def create_user(user: UserCreate, db: SessionDep):
+    result = await db.scalar(
         select(User).where(
             (User.username == user.username) | (User.email == user.email)
         )
@@ -23,22 +24,24 @@ def create_user(user: UserCreate, db: SessionDep):
         )
     new_user = User(**user.model_dump())
     db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    await db.commit()
+    await db.refresh(new_user)
     return new_user
 
 
 @router.get("/{user_id}", response_model=UserResponse)
-def get_user(user_id: int, db: SessionDep):
-    user: User | None = db.get(User, user_id)
+async def get_user(user_id: int, db: SessionDep):
+    user: User | None = await db.get(User, user_id)
     if user:
         return user
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
 
 @router.get("/{user_id}/posts", response_model=list[PostResponse])
-def get_user_posts(user_id: int, db: SessionDep):
-    user = db.get(User, user_id)
+async def get_user_posts(user_id: int, db: SessionDep):
+    user = await db.get(
+        User, user_id, options=[selectinload(User.posts).selectinload(Post.author)]
+    )
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
@@ -47,8 +50,8 @@ def get_user_posts(user_id: int, db: SessionDep):
 
 
 @router.patch("/{user_id}", response_model=UserResponse)
-def update_user(user_id: int, user_update: UserUpdate, db: SessionDep):
-    user: User | None = db.get(User, user_id)
+async def update_user(user_id: int, user_update: UserUpdate, db: SessionDep):
+    user: User | None = await db.get(User, user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
@@ -71,17 +74,17 @@ def update_user(user_id: int, user_update: UserUpdate, db: SessionDep):
             )
     for field, value in user_update.model_dump(exclude_unset=True).items():
         setattr(user, field, value)
-    db.commit()
-    db.refresh(user)
+    await db.commit()
+    await db.refresh(user)
     return user
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(user_id: int, db: SessionDep):
-    user: User | None = db.get(User, user_id)
+async def delete_user(user_id: int, db: SessionDep):
+    user: User | None = await db.get(User, user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="user not found"
         )
-    db.delete(user)
-    db.commit() 
+    await db.delete(user)
+    await db.commit()
