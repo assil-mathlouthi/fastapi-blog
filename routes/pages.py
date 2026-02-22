@@ -1,5 +1,8 @@
 from fastapi import APIRouter, Request, HTTPException, status
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
 
 from database import SessionDep
 from models import Post, User
@@ -10,8 +13,9 @@ templates = Jinja2Templates(directory="templates")
 
 @router.get("/", name="home")
 @router.get("/posts", name="posts")
-def home(request: Request, db: SessionDep):
-    posts = db.query(Post).all()
+async def home(request: Request, db: SessionDep):
+    result = await db.execute(select(Post).options(selectinload(Post.author)))
+    posts = result.scalars().all()
     return templates.TemplateResponse(
         request,
         "home.html",
@@ -20,8 +24,8 @@ def home(request: Request, db: SessionDep):
 
 
 @router.get("/posts/{post_id}")
-def post_page(request: Request, post_id: int, db: SessionDep):
-    post = db.get(Post, post_id)
+async def post_page(request: Request, post_id: int, db: SessionDep):
+    post = await db.get(Post, post_id, options=[selectinload(Post.author)])
     if not post:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Post not found"
@@ -37,12 +41,12 @@ def post_page(request: Request, post_id: int, db: SessionDep):
 
 
 @router.get("/users/{user_id}/posts")
-def user_posts_page(
+async def user_posts_page(
     request: Request,
     user_id: int,
     db: SessionDep,
 ):
-    user = db.get(User, user_id)
+    user = await db.get(User, user_id,options=[selectinload(User.posts)])
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

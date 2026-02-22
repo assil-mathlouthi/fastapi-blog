@@ -1,27 +1,30 @@
 from __future__ import annotations
 
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import  DeclarativeBase
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from typing import Annotated
 from fastapi import Depends
-from sqlalchemy.orm import Session
 
 
-DATABASE_URL = "sqlite:///./blog.db"
+DATABASE_URL = "sqlite+aiosqlite:///./blog.db"
 
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+async_engine = create_async_engine(
+    DATABASE_URL, connect_args={"check_same_thread": False}
+)
+async_session_local = async_sessionmaker(
+    async_engine, class_=AsyncSession, expire_on_commit=False
+)
 
 
 class Base(DeclarativeBase):
     pass
 
 
-def get_db():
-    with session_local() as db:
+async def get_session():
+    async with async_session_local() as db:
         yield db
 
 
-SessionDep = Annotated[Session, Depends(get_db)]
+SessionDep = Annotated[AsyncSession, Depends(get_session)]

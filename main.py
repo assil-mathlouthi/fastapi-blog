@@ -4,15 +4,30 @@ from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from contextlib import asynccontextmanager
+from fastapi.exception_handlers import (
+    request_validation_exception_handler,
+    http_exception_handler,
+)
+from sqlalchemy.orm import selectinload
 
-from database import Base, engine
+from database import Base, async_engine
 
 from routes import user_router, post_router, pages_router
 
-Base.metadata.create_all(bind=engine)
 
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+    # Shutdown
+    await async_engine.dispose()
+
+
+app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/media", StaticFiles(directory="media"), name="media")
 
